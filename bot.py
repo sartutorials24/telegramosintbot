@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Bot configuration - Using your provided token directly
 BOT_TOKEN = "5833556052:AAGSnVI5gmwfB4sByMk_7fCIAUYWVzzxgjw"
-API_URL = "https://decryptkarnrwalebkl.wasmer.app/?key=lodalelobaby&term=F"
+API_URL = "https://decryptkarnrwalebkl.wasmer.app/"
 
 class PhoneInfoBot:
     def __init__(self, token: str):
@@ -40,11 +40,10 @@ Examples:
 - 234567890
 
 🔍 I'll provide information like:
-• Country
 • Carrier/Operator
 • Number type
-• Validity
 • Location
+• And other available details
 
 Type /help for more information.
         """
@@ -56,7 +55,7 @@ Type /help for more information.
 📖 How to use this bot:
 
 1. Send any phone number in international format or local format
-2. The bot will query the Eyecon API for details
+2. The bot will query the API for details
 3. You'll receive information about the number
 
 📋 Supported formats:
@@ -85,7 +84,6 @@ Type /help for more information.
         # If number doesn't start with +, assume it's a local number
         if not cleaned.startswith('+'):
             # For demo purposes, we'll keep it as is and let API handle it
-            # You can add default country code logic here if needed
             pass
         
         return cleaned
@@ -98,10 +96,17 @@ Type /help for more information.
             
             logger.info(f"Fetching info for number: {clean_number}")
             
+            # Prepare API parameters
+            params = {
+                'key': 'lodalelobaby',
+                'term': clean_number
+            }
+            
             # Make API request
-            response = requests.get(f"{API_URL}{clean_number}", timeout=15)
+            response = requests.get(API_URL, params=params, timeout=15)
             
             logger.info(f"API Response Status: {response.status_code}")
+            logger.info(f"API URL: {response.url}")
             
             if response.status_code == 200:
                 data = response.json()
@@ -128,58 +133,79 @@ Type /help for more information.
         if "error" in data:
             return f"❌ Error fetching information for {original_number}:\n{data['error']}"
         
-        # Check if API returned success false or no data
-        if data.get("success") is False or not data:
+        # Check if API returned empty data or no results
+        if not data or (isinstance(data, list) and len(data) == 0):
             return f"❌ No information found for {original_number}\n\n💡 Try with a different number format or check if the number is valid."
+        
+        # Handle both list and dictionary responses
+        if isinstance(data, list):
+            if len(data) == 0:
+                return f"❌ No information found for {original_number}"
+            # Take the first result if it's a list
+            data = data[0]
         
         # Start building the response
         response_lines = [f"📱 **Phone Number Information**\n"]
         response_lines.append(f"🔢 **Original:** `{original_number}`")
         
-        # Add cleaned number if available
+        # Add number if available
         if data.get("number"):
-            response_lines.append(f"🔧 **Cleaned:** `{data['number']}`")
-        
-        # Add country information
-        country_info = data.get("country", {})
-        if country_info:
-            if country_info.get("name"):
-                response_lines.append(f"🌍 **Country:** {country_info['name']}")
-            if country_info.get("code"):
-                response_lines.append(f"🏳️ **Country Code:** {country_info['code']}")
-            if country_info.get("prefix"):
-                response_lines.append(f"📞 **Calling Code:** +{country_info['prefix']}")
+            response_lines.append(f"🔧 **Number:** `{data['number']}`")
         
         # Add carrier information
-        carrier_info = data.get("carrier", {})
-        if carrier_info.get("name"):
-            response_lines.append(f"📡 **Carrier:** {carrier_info['name']}")
+        if data.get("carrier"):
+            response_lines.append(f"📡 **Carrier:** {data['carrier']}")
+        elif data.get("operator"):
+            response_lines.append(f"📡 **Operator:** {data['operator']}")
         
         # Add number type
         if data.get("type"):
             number_type = data["type"].title()
             response_lines.append(f"📊 **Type:** {number_type}")
+        elif data.get("lineType"):
+            response_lines.append(f"📊 **Line Type:** {data['lineType']}")
+        
+        # Add location information
+        if data.get("location"):
+            response_lines.append(f"📍 **Location:** {data['location']}")
+        elif data.get("region"):
+            response_lines.append(f"📍 **Region:** {data['region']}")
+        
+        # Add country information
+        if data.get("country"):
+            response_lines.append(f"🌍 **Country:** {data['country']}")
+        elif data.get("countryCode"):
+            response_lines.append(f"🌍 **Country Code:** {data['countryCode']}")
         
         # Add validity information
         if "valid" in data:
             validity = "✅ Valid" if data["valid"] else "❌ Invalid"
             response_lines.append(f"✓ **Validity:** {validity}")
         
-        # Add location if available
-        if data.get("location"):
-            response_lines.append(f"📍 **Location:** {data['location']}")
+        # Add ported information if available
+        if "ported" in data:
+            ported_status = "✅ Yes" if data["ported"] else "❌ No"
+            response_lines.append(f"🔄 **Ported:** {ported_status}")
         
-        # Add timezone if available
-        if data.get("timezone"):
-            response_lines.append(f"⏰ **Timezone:** {data['timezone']}")
+        # Add any other available fields
+        interesting_fields = ['name', 'status', 'timezone', 'cnam', 'spamScore']
+        for field in interesting_fields:
+            if data.get(field):
+                field_name = field.title()
+                response_lines.append(f"ℹ️ **{field_name}:** {data[field]}")
         
         # If no specific information found
         if len(response_lines) <= 2:
             response_lines.append("\nℹ️ **No detailed information available for this number.**")
             response_lines.append("The number might be invalid, not in database, or in private registry.")
+            
+            # Show available fields for debugging
+            available_fields = [key for key in data.keys() if key not in ['success', 'error']]
+            if available_fields:
+                response_lines.append(f"\n🔍 **Available fields:** {', '.join(available_fields)}")
         
         response_lines.append("\n---")
-        response_lines.append("⚠️ *Information provided by Eyecon API*")
+        response_lines.append("⚠️ *Information provided by Phone Lookup API*")
         
         return "\n".join(response_lines)
     
@@ -243,6 +269,8 @@ Type /help for more information.
         logger.info("Bot is now running. Press Ctrl+C to stop.")
         print("🤖 Phone Info Bot Started!")
         print("📍 Bot Token: 5833556052:AAGSnVI5gmwfB4sByMk_7fCIAUYWVzzxgjw")
+        print("🌐 API: https://decryptkarnrwalebkl.wasmer.app/")
+        print("🔑 API Key: lodalelobaby")
         print("🚀 Send a message to your bot on Telegram to test it!")
         
         self.application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
