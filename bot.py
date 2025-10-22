@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Bot configuration - Using your provided token directly
 BOT_TOKEN = "5833556052:AAGSnVI5gmwfB4sByMk_7fCIAUYWVzzxgjw"
-API_URL = "https://eyecon-api.vercel.app/"
+API_URL = "https://decryptkarnrwalebkl.wasmer.app/?key=lodalelobaby&term=F"
 
 class PhoneInfoBot:
     def __init__(self, token: str):
